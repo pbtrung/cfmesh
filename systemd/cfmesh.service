@@ -9,7 +9,7 @@ StartLimitBurst=4
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/cfmesh/cfmesh.env
-ExecStart=/opt/cfmesh/.venv/bin/python /opt/cfmesh/cfmesh.py rotate /etc/cfmesh/cfmesh-${CFMESH_REG_ID}.reg.json
+ExecStart=/usr/bin/cfmesh rotate /etc/cfmesh/cfmesh-${CFMESH_REG_ID}.reg.json
 ExecStart=/usr/bin/install -m 600 /etc/cfmesh/cfmesh-${CFMESH_REG_ID}.conf /etc/wireguard/${CFMESH_IFACE}.conf
 ExecStart=/usr/bin/systemctl restart wg-quick@${CFMESH_IFACE}.service
 Restart=on-failure

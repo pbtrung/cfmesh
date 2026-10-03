@@ -19,12 +19,6 @@ pkgver() {
   printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
-prepare() {
-  cd "$_pkgname"
-  # The packaged script lives at /usr/bin/cfmesh instead of the /opt venv
-  sed -i 's|/opt/cfmesh/.venv/bin/python /opt/cfmesh/cfmesh.py|/usr/bin/cfmesh|' systemd/cfmesh.service
-}
-
 package() {
   cd "$_pkgname"
   install -Dm755 cfmesh.py "$pkgdir/usr/bin/cfmesh"

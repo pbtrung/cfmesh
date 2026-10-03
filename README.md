@@ -41,8 +41,7 @@ cd arch
 makepkg -si
 ```
 
-With the package, run `cfmesh` instead of `python3 cfmesh.py`, and skip the
-`/opt/cfmesh` and `cp systemd/...` steps in the systemd section below.
+With the package, run `cfmesh` instead of `python3 cfmesh.py`.
 
 ## Setup
 
@@ -105,23 +104,29 @@ restart `wg-quick@<iface>`. The service waits for the network to be online and
 retries up to 3 times, 5 minutes apart. A run missed while the machine was off
 starts at the next boot.
 
-```bash
-# Install the script
-sudo mkdir -p /opt/cfmesh /etc/cfmesh
-sudo cp cfmesh.py /opt/cfmesh/
-sudo python3 -m venv /opt/cfmesh/.venv
-sudo /opt/cfmesh/.venv/bin/pip install cryptography
+The service runs `/usr/bin/cfmesh`, so install the [Arch Linux
+package](#arch-linux-package) first, or install the script there yourself
+(this needs `cryptography` available to the system `python3`, e.g.
+`sudo pacman -S python-cryptography`):
 
+```bash
+sudo install -m 755 cfmesh.py /usr/bin/cfmesh
+sudo cp systemd/cfmesh.service systemd/cfmesh.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Then enroll, configure and enable the timer:
+
+```bash
 # Enroll into /etc/cfmesh and set the registration ID
-sudo -E /opt/cfmesh/.venv/bin/python /opt/cfmesh/cfmesh.py enroll <team> --out /etc/cfmesh
-sudo install -m 600 systemd/cfmesh.env.example /etc/cfmesh/cfmesh.env
-sudoedit /etc/cfmesh/cfmesh.env           # set CFMESH_REG_ID=<id>
+sudo mkdir -p /etc/cfmesh
+sudo -E cfmesh enroll <team> --out /etc/cfmesh
+printf 'CFMESH_REG_ID=<id>\nCFMESH_IFACE=cfmesh\n' |
+  sudo install -m 600 /dev/stdin /etc/cfmesh/cfmesh.env
 
 # Bring the tunnel up once, then enable the timer
 sudo install -m 600 /etc/cfmesh/cfmesh-<id>.conf /etc/wireguard/cfmesh.conf
 sudo systemctl enable --now wg-quick@cfmesh
-sudo cp systemd/cfmesh.service systemd/cfmesh.timer /etc/systemd/system/
-sudo systemctl daemon-reload
 sudo systemctl enable --now cfmesh.timer
 ```
 
