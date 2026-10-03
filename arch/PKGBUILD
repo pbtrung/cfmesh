@@ -1,0 +1,36 @@
+# Maintainer: Trung Pham <pbtrung@outlook.com>
+pkgname=cfmesh-git
+_pkgname=cfmesh
+pkgver=r3.c6a1809
+pkgrel=1
+pkgdesc="Cloudflare Zero Trust WireGuard configs without warp-cli or Docker"
+arch=('any')
+url="https://github.com/pbtrung/cfmesh"
+license=('MIT')
+depends=('python' 'python-cryptography' 'wireguard-tools')
+makedepends=('git')
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+source=("$_pkgname::git+https://github.com/pbtrung/cfmesh.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$_pkgname"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+  cd "$_pkgname"
+  # The packaged script lives at /usr/bin/cfmesh instead of the /opt venv
+  sed -i 's|/opt/cfmesh/.venv/bin/python /opt/cfmesh/cfmesh.py|/usr/bin/cfmesh|' systemd/cfmesh.service
+}
+
+package() {
+  cd "$_pkgname"
+  install -Dm755 cfmesh.py "$pkgdir/usr/bin/cfmesh"
+  install -Dm644 systemd/cfmesh.service -t "$pkgdir/usr/lib/systemd/system/"
+  install -Dm644 systemd/cfmesh.timer -t "$pkgdir/usr/lib/systemd/system/"
+  install -Dm644 systemd/cfmesh.env.example -t "$pkgdir/usr/share/doc/$_pkgname/"
+  install -Dm644 README.md -t "$pkgdir/usr/share/doc/$_pkgname/"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname/"
+}

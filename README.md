@@ -30,6 +30,20 @@ source .venv/bin/activate        # fish: source .venv/bin/activate.fish
 pip install cryptography
 ```
 
+### Arch Linux package
+
+`arch/PKGBUILD` builds `cfmesh-git` from the latest commit on GitHub. It
+installs `cfmesh` to `/usr/bin`, the systemd units, and pulls in
+`python-cryptography` and `wireguard-tools`.
+
+```bash
+cd arch
+makepkg -si
+```
+
+With the package, run `cfmesh` instead of `python3 cfmesh.py`, and skip the
+`/opt/cfmesh` and `cp systemd/...` steps in the systemd section below.
+
 ## Setup
 
 1. In the Zero Trust dashboard, create an **Access service token**.

@@ -37,3 +37,9 @@ htmlcov/
 .idea/
 *.swp
 .DS_Store
+
+# makepkg output
+arch/src/
+arch/pkg/
+arch/cfmesh/
+*.pkg.tar.*
