@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily cfmesh WireGuard key rotation at 00:00:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 UTC
+AccuracySec=1s
+Persistent=true
+Unit=cfmesh.service
+
+[Install]
+WantedBy=timers.target

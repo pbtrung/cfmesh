@@ -1,0 +1,17 @@
+[Unit]
+Description=Rotate the cfmesh WireGuard key and restart the tunnel
+Wants=network-online.target
+After=network-online.target
+# 1 run + up to 3 retries within an hour, then give up until the next timer run
+StartLimitIntervalSec=1h
+StartLimitBurst=4
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/cfmesh/cfmesh.env
+ExecStart=/opt/cfmesh/.venv/bin/python /opt/cfmesh/cfmesh.py rotate /etc/cfmesh/cfmesh-${CFMESH_REG_ID}.reg.json
+ExecStart=/usr/bin/install -m 600 /etc/cfmesh/cfmesh-${CFMESH_REG_ID}.conf /etc/wireguard/${CFMESH_IFACE}.conf
+ExecStart=/usr/bin/systemctl restart wg-quick@${CFMESH_IFACE}.service
+Restart=on-failure
+RestartSec=5min
+UMask=0077
