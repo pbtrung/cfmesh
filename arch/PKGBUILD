@@ -1,7 +1,7 @@
 # Maintainer: Trung Pham <pbtrung@outlook.com>
 pkgname=cfmesh-git
 _pkgname=cfmesh
-pkgver=r0  # set by pkgver() from git at build time
+pkgver=r0
 pkgrel=1
 pkgdesc="Cloudflare Zero Trust WireGuard configs without warp-cli or Docker"
 arch=('any')

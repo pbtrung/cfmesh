@@ -96,6 +96,20 @@ python3 cfmesh.py rotate configs/cfmesh-<id>.reg.json
 Rotation does not need `CF_CLIENT_ID`/`CF_CLIENT_SECRET`. The old key stops
 working immediately, so deploy the new `.conf` and restart the tunnel.
 
+### Check a device
+
+```bash
+python3 cfmesh.py status configs/cfmesh-<id>.reg.json
+```
+
+Shows what Cloudflare reports for the device: its current IP, the key it has
+on file, and any other status fields the API returns. It exits with an error
+if the server key does not match the local one, or if the device IP has
+changed since the `.conf` was written (run `rotate` to refresh it).
+
+- `--json` — print the full API response, with the token and private key
+  redacted
+
 ### Daily rotation with systemd
 
 `systemd/` contains a service and timer that rotate the key every day at
@@ -132,6 +146,38 @@ sudo systemctl enable --now cfmesh.timer
 
 Check it with `systemctl list-timers cfmesh.timer` and
 `journalctl -u cfmesh.service`.
+
+## wgcf-mesh.sh
+
+`wgcf-mesh.sh` registers a Cloudflare Mesh node from a Cloudflare Mesh token
+(the one starting with `eyJhIjoi`) and writes its WireGuard config. It needs
+`bash`, `curl`, `jq` and either `wg` or OpenSSL with X25519 support.
+
+```bash
+./wgcf-mesh.sh --name my-node <token>
+./wgcf-mesh.sh --name my-node - < token-file   # keep the token out of shell history
+```
+
+- `--name`, `--model`, `--os-version`, `--serial-number` — device metadata
+  shown in the dashboard (`--name` defaults to `wgcf-mesh`)
+- `--allowed-ips` — comma-separated AllowedIPs for the config (default
+  `100.96.0.0/12`), e.g. `--allowed-ips '100.96.0.0/12, fd00::/8'`
+- `--delete-after` — delete the registration right after writing the config,
+  for testing
+
+This writes `wgcf-mesh-<id>.conf`, which does not override DNS, and
+`wgcf-mesh-<id>.json`, a device profile holding the API token for the device.
+Both contain secrets and are created with `0600` permissions.
+
+Use the device profile to change the metadata or delete the device later:
+
+```bash
+./wgcf-mesh.sh --update wgcf-mesh-<id>.json --name new-name
+./wgcf-mesh.sh --delete wgcf-mesh-<id>.json
+```
+
+`--allowed-ips` applies only when creating a config, not with `--update` or
+`--delete`.
 
 ## Environment variables
 

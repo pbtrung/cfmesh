@@ -5,6 +5,7 @@ cfmesh.py - Zero Trust WireGuard configs without warp-cli or Docker.
 Commands
   enroll <team>       Register a new device with a fresh key and write a .conf
   rotate <reg.json>   Replace the WireGuard key of an existing device (same device, same IP)
+  status <reg.json>   Show what Cloudflare reports for an existing device
 
 Requires: pip install cryptography
 Env:      CF_CLIENT_ID, CF_CLIENT_SECRET  (Access service token; enroll only)
@@ -175,24 +176,45 @@ def cmd_enroll(a):
     )
 
 
-def cmd_rotate(a):
+def load_state(reg_file):
     try:
-        state = json.load(open(a.reg_file))
+        state = json.load(open(reg_file))
     except (OSError, ValueError) as e:
-        die(f"cannot read {a.reg_file}: {e}")
-    reg_id, token = state.get("id"), state.get("token")
-    if not reg_id or not token:
-        die(
-            "reg file has no id/token; this device cannot be rotated, re-enroll it instead"
-        )
+        die(f"cannot read {reg_file}: {e}")
+    if not state.get("id") or not state.get("token"):
+        die("reg file has no id/token; re-enroll this device instead")
     api = os.environ.get("CF_CLIENT_API") or state.get("client_api") or CLIENT_API
-    old_ip = (
-        state.get("raw", {})
-        .get("config", {})
-        .get("interface", {})
-        .get("addresses", {})
-        .get("v4")
-    )
+    return state, api
+
+
+def device_ip(res):
+    return res.get("config", {}).get("interface", {}).get("addresses", {}).get("v4")
+
+
+def public_key(priv_b64):
+    priv = X25519PrivateKey.from_private_bytes(base64.b64decode(priv_b64))
+    return b64(priv.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw))
+
+
+def redact(obj):
+    if isinstance(obj, dict):
+        return {
+            k: (
+                "<redacted>"
+                if k in ("token", "private_key") or "secret" in k
+                else redact(v)
+            )
+            for k, v in obj.items()
+        }
+    if isinstance(obj, list):
+        return [redact(v) for v in obj]
+    return obj
+
+
+def cmd_rotate(a):
+    state, api = load_state(a.reg_file)
+    reg_id, token = state["id"], state["token"]
+    old_ip = device_ip(state.get("raw", {}))
 
     priv_b64, pub_b64 = new_keypair()
     st, _, raw = http(
@@ -226,6 +248,62 @@ def cmd_rotate(a):
     print("Old key is now invalid: deploy the new .conf and restart the tunnel.")
 
 
+def cmd_status(a):
+    state, api = load_state(a.reg_file)
+    reg_id = state["id"]
+    st, _, raw = http(
+        "GET",
+        f"{api}/reg/{reg_id}",
+        {**CLIENT_HEADERS, "Authorization": f"Bearer {state['token']}"},
+    )
+    if st >= 300:
+        die(f"GET /reg/{reg_id} -> HTTP {st}: {raw[:400]!r}")
+    res = parse_result(raw)
+    if a.json:
+        print(json.dumps(redact(res), indent=2))
+        return
+
+    cfg = res.get("config", {})
+    peer = (cfg.get("peers") or [{}])[0]
+    local_ip = device_ip(state.get("raw", {}))
+    local_key = public_key(state["private_key"]) if state.get("private_key") else None
+    rows = [
+        ("Device ID", reg_id),
+        ("Device IP", device_ip(res)),
+        ("Device IPv6", cfg.get("interface", {}).get("addresses", {}).get("v6")),
+        ("Server key", res.get("key")),
+        ("Local key", local_key),
+        ("Peer key", peer.get("public_key")),
+        ("Endpoint", peer.get("endpoint", {}).get("v4")),
+    ]
+    # Surface any other scalar fields (status flags, timestamps) as-is
+    shown = {"id", "key", "token", "config"}
+    for scope, obj in (("", res), ("account.", res.get("account") or {})):
+        for k, v in obj.items():
+            if k not in shown and not isinstance(v, (dict, list)):
+                rows.append((scope + k, v))
+    w = max(len(k) for k, _ in rows)
+    for k, v in rows:
+        if v is not None and v != "":
+            print(f"{k:<{w}}  {v}")
+
+    ok = True
+    if local_key and res.get("key") and local_key != res["key"]:
+        print(
+            "Warning: local key does not match the server key; rotate or re-enroll",
+            file=sys.stderr,
+        )
+        ok = False
+    if local_ip and device_ip(res) and local_ip != device_ip(res):
+        print(
+            f"Warning: device IP changed {local_ip} -> {device_ip(res)}; run rotate to refresh the .conf",
+            file=sys.stderr,
+        )
+        ok = False
+    if not ok:
+        sys.exit(1)
+
+
 def main():
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -246,6 +324,12 @@ def main():
     r.add_argument("--out", help="output directory (default: next to reg file)")
     r.add_argument("--allowed-ips", help="override AllowedIPs (default: keep previous)")
     r.set_defaults(fn=cmd_rotate)
+    t = s.add_parser("status", help="show what Cloudflare reports for a device")
+    t.add_argument("reg_file", help="cfmesh-<id>.reg.json from enroll")
+    t.add_argument(
+        "--json", action="store_true", help="print the full response (secrets redacted)"
+    )
+    t.set_defaults(fn=cmd_status)
     a = p.parse_args()
     a.fn(a)
 

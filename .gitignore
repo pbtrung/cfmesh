@@ -43,3 +43,6 @@ arch/src/
 arch/pkg/
 arch/cfmesh/
 *.pkg.tar.*
+
+*.json
+*.conf
